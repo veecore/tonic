@@ -122,7 +122,7 @@ impl<T> Grpc<T> {
     ///     .await
     ///     .unwrap();
     ///
-    /// let client = Grpc::builder()
+    /// let client = Grpc::<Channel>::builder()
     ///     .origin("http://example.com".parse().unwrap())
     ///     .send_compressed(CompressionEncoding::Gzip)
     ///     .accept_compressed(CompressionEncoding::Gzip)
