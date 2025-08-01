@@ -48,6 +48,7 @@ channel = [
   "dep:hyper-timeout",
 ]
 transport = ["server", "channel"]
+grpc_config = []
 
 # [[bench]]
 # name = "bench_main"
