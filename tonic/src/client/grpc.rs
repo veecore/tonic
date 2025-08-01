@@ -143,7 +143,7 @@ impl<T> Grpc<T> {
     pub fn with_origin(inner: T, origin: Uri) -> Self {
     	#[cfg(feature = "grpc_config")]
     	{
- 	       Self::builder().origin(origin).build()    	
+ 	       Self::builder().origin(origin).build(inner)    	
     	}
     	
         #[cfg(not(feature = "grpc_config"))]
@@ -639,7 +639,7 @@ impl GrpcBuilder {
     pub fn build<T>(self, inner: T) -> Grpc<T> {
         Grpc {
             inner,
-            config: self.config,
+            config: self.config.into(),
         }
     }
 }
