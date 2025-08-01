@@ -136,66 +136,88 @@ impl<T> Grpc<T> {
         GrpcBuilder::default()
     }
     
-    /// Compress requests with the provided encoding.
-	///
-	/// This clones the current config to avoid modifying shared state.
-	/// Prefer using [`GrpcBuilder::send_compressed`] during configuration.
-	///
-	/// # Note
-	///
-	/// Using this method bypasses the shared configuration mechanism and
-	/// allocates a new `GrpcConfig` internally.
-	pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
-		let mut config = (*self.config).clone();
-		config.send_compression_encodings = Some(encoding);
-		self.config = Arc::new(config);
-		self
-	}
-
-	/// Enable accepting compressed responses.
-	///
-	/// This clones the current config to avoid modifying shared state.
-	/// Prefer using [`GrpcBuilder::accept_compressed`] during configuration.
-	///
-	/// # Note
-	///
-	/// Using this method bypasses the shared configuration mechanism and
-	/// allocates a new `GrpcConfig` internally.
-	pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
-		let mut config = (*self.config).clone();
-		config.accept_compression_encodings.enable(encoding);
-		self.config = Arc::new(config);
-		self
-	}
-
-	/// Limits the maximum size of a decoded message.
-	///
-	/// This clones the current config to avoid modifying shared state.
-	/// Prefer using [`GrpcBuilder::max_decoding_message_size`] during configuration.
-	pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
-		let mut config = (*self.config).clone();
-		config.max_decoding_message_size = Some(limit);
-		self.config = Arc::new(config);
-		self
-	}
-
-	/// Limits the maximum size of an encoded message.
-	///
-	/// This clones the current config to avoid modifying shared state.
-	/// Prefer using [`GrpcBuilder::max_encoding_message_size`] during configuration.
-	pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
-		let mut config = (*self.config).clone();
-		config.max_encoding_message_size = Some(limit);
-		self.config = Arc::new(config);
-		self
-	}
-    
     /// Creates a new gRPC client with the provided [`GrpcService`] and `Uri`.
     ///
     /// The provided Uri will use only the scheme and authority parts as the
     /// path_and_query portion will be set for each method.
     pub fn with_origin(inner: T, origin: Uri) -> Self {
-    	Self::builder().origin(origin).build()
+    	#[cfg(feature = "grpc_config")]
+    	{
+ 	       Self::builder().origin(origin).build()    	
+    	}
+    	
+        #[cfg(not(feature = "grpc_config"))]
+        {
+        	Self::new()
+        }
+    }
+
+    /// Compress requests with the provided encoding.
+    ///
+    /// This clones the current config to avoid modifying shared state.
+    /// Prefer using [`GrpcBuilder::send_compressed`] during configuration.
+    ///
+    /// # Note
+    ///
+    /// Using this method bypasses the shared configuration mechanism and
+    /// allocates a new `GrpcConfig` internally.
+    pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+        // This method and its kind shouldn't exist at all but it's harder to
+        // refractor uses than to just have a no-op
+        #[cfg(feature = "grpc_config")]
+        {
+            let mut config = (*self.config).clone();
+            config.send_compression_encodings = Some(encoding);
+            self.config = Arc::new(config);
+        }
+        self
+    }
+
+    /// Enable accepting compressed responses.
+    ///
+    /// This clones the current config to avoid modifying shared state.
+    /// Prefer using [`GrpcBuilder::accept_compressed`] during configuration.
+    ///
+    /// # Note
+    ///
+    /// Using this method bypasses the shared configuration mechanism and
+    /// allocates a new `GrpcConfig` internally.
+    pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+        #[cfg(feature = "grpc_config")]
+        {
+            let mut config = (*self.config).clone();
+            config.accept_compression_encodings.enable(encoding);
+            self.config = Arc::new(config);
+        }
+        self
+    }
+
+    /// Limits the maximum size of a decoded message.
+    ///
+    /// This clones the current config to avoid modifying shared state.
+    /// Prefer using [`GrpcBuilder::max_decoding_message_size`] during configuration.
+    pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+        #[cfg(feature = "grpc_config")]
+        {
+            let mut config = (*self.config).clone();
+            config.max_decoding_message_size = Some(limit);
+            self.config = Arc::new(config);
+        }
+        self
+    }
+
+    /// Limits the maximum size of an encoded message.
+    ///
+    /// This clones the current config to avoid modifying shared state.
+    /// Prefer using [`GrpcBuilder::max_encoding_message_size`] during configuration.
+    pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+        #[cfg(feature = "grpc_config")]
+        {
+            let mut config = (*self.config).clone();
+            config.max_encoding_message_size = Some(limit);
+            self.config = Arc::new(config);
+        }
+        self
     }
 
     /// Check if the inner [`GrpcService`] is able to accept a  new request.
