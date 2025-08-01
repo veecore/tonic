@@ -76,7 +76,7 @@ macro_rules! config_getters {
 
 config_getters! {
     #[allow(dead_code)]
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     struct GrpcConfig {
         origin = origin: Uri,
         /// Which compression encodings does the client accept?
@@ -636,7 +636,7 @@ impl GrpcBuilder {
     }
 
     /// Creates a new gRPC client with the provided [`GrpcService`]
-    pub fn build<T>(inner: T) -> Grpc<T> {
+    pub fn build<T>(self, inner: T) -> Grpc<T> {
         Grpc {
             inner,
             config: self.config,
