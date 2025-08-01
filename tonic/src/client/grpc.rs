@@ -13,10 +13,9 @@ use http::{
     uri::{PathAndQuery, Uri},
 };
 use http_body::Body as HttpBody;
+use std::sync::Arc;
 use std::{fmt, future, pin::pin};
 use tokio_stream::{Stream, StreamExt};
-#[cfg(feature = "grpc_config")]
-use std::sync::Arc;
 
 /// A gRPC client dispatcher.
 ///
@@ -43,7 +42,8 @@ macro_rules! config_getters {
         struct GrpcConfig {
             $(
                 $(#[$doc:meta])*
-                $field:ident: $ty:ty,
+                // This is to keep tests compiling and to avoid adding paste as dependency
+                $field:ident = $getter:ident: $ty:ty,
             )+
         }
     } => {
@@ -58,7 +58,7 @@ macro_rules! config_getters {
         impl<T> Grpc<T> {
             $(
                 #[inline(always)]
-                fn $field(&self) -> $ty {
+                fn $getter(&self) -> $ty {
                     #[cfg(feature = "grpc_config")]
                     {
                         self.config.$field.clone()
@@ -75,71 +75,129 @@ macro_rules! config_getters {
 }
 
 config_getters! {
-	#[allow(dead_code)]
-	#[derive(Default)]
-	struct GrpcConfig {
-		origin: Uri,
-		/// Which compression encodings does the client accept?
-		accept_compression_encodings: EnabledCompressionEncodings,
-		/// The compression encoding that will be applied to requests.
-		send_compression_encodings: Option<CompressionEncoding>,
-		/// Limits the maximum size of a decoded message.
-		max_decoding_message_size: Option<usize>,
-		/// Limits the maximum size of an encoded message.
-		max_encoding_message_size: Option<usize>,
-	}
+    #[allow(dead_code)]
+    #[derive(Default)]
+    struct GrpcConfig {
+        origin = origin: Uri,
+        /// Which compression encodings does the client accept?
+        accept_compression_encodings = get_accept_compression_encodings: EnabledCompressionEncodings,
+        /// The compression encoding that will be applied to requests.
+        send_compression_encodings = get_send_compression_encodings: Option<CompressionEncoding>,
+        /// Limits the maximum size of a decoded message.
+        max_decoding_message_size = get_max_decoding_message_size: Option<usize>,
+        /// Limits the maximum size of an encoded message.
+        max_encoding_message_size = get_max_encoding_message_size: Option<usize>,
+    }
 }
-
 
 impl<T> Grpc<T> {
     /// Creates a new gRPC client with the provided [`GrpcService`].
     pub fn new(inner: T) -> Self {
-    	#[cfg(feature = "grpc_config")]
-    	{
-	    	Self::builder().build(inner)    	
-    	}
+        #[cfg(feature = "grpc_config")]
+        {
+            Self::builder().build(inner)
+        }
 
-    	
-    	#[cfg(not(feature = "grpc_config"))]
-    	{
-    		Self {
-				inner
-			}
-    	}
+        #[cfg(not(feature = "grpc_config"))]
+        {
+            Self { inner }
+        }
     }
-    
+
     /// Creates a builder for configuring a [`Grpc`] client.
-	///
-	/// This method is only available when the `grpc_config` feature is enabled.  
-	/// It allows customization of options such as compression, message size limits, and the request origin URI.
-	///
-	/// # Example
-	///
-	/// ```rust
-	/// use tonic::transport::Channel;
-	/// use tonic::codec::CompressionEncoding;
-	/// use tonic::client::Grpc;
-	///
-	/// # async {
-	/// let channel = Channel::builder("http://[::1]:50051".parse().unwrap())
-	///     .connect()
-	///     .await
-	///     .unwrap();
-	///
-	/// let client = Grpc::builder()
-	///     .origin("http://example.com".parse().unwrap())
-	///     .send_compressed(CompressionEncoding::Gzip)
-	///     .accept_compressed(CompressionEncoding::Gzip)
-	///     .max_decoding_message_size(2 * 1024 * 1024)
-	///     .max_encoding_message_size(2 * 1024 * 1024)
-	///     .build(channel);
-	/// # };
-	/// ```
+    ///
+    /// This method is only available when the `grpc_config` feature is enabled.  
+    /// It allows customization of options such as compression, message size limits, and the request origin URI.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use tonic::transport::Channel;
+    /// use tonic::codec::CompressionEncoding;
+    /// use tonic::client::Grpc;
+    ///
+    /// # async {
+    /// let channel = Channel::builder("http://[::1]:50051".parse().unwrap())
+    ///     .connect()
+    ///     .await
+    ///     .unwrap();
+    ///
+    /// let client = Grpc::builder()
+    ///     .origin("http://example.com".parse().unwrap())
+    ///     .send_compressed(CompressionEncoding::Gzip)
+    ///     .accept_compressed(CompressionEncoding::Gzip)
+    ///     .max_decoding_message_size(2 * 1024 * 1024)
+    ///     .max_encoding_message_size(2 * 1024 * 1024)
+    ///     .build(channel);
+    /// # };
+    /// ```
     #[cfg(feature = "grpc_config")]
     pub fn builder() -> GrpcBuilder {
-    	GrpcBuilder::default()
+        GrpcBuilder::default()
     }
     
+    /// Compress requests with the provided encoding.
+	///
+	/// This clones the current config to avoid modifying shared state.
+	/// Prefer using [`GrpcBuilder::send_compressed`] during configuration.
+	///
+	/// # Note
+	///
+	/// Using this method bypasses the shared configuration mechanism and
+	/// allocates a new `GrpcConfig` internally.
+	pub fn send_compressed(mut self, encoding: CompressionEncoding) -> Self {
+		let mut config = (*self.config).clone();
+		config.send_compression_encodings = Some(encoding);
+		self.config = Arc::new(config);
+		self
+	}
+
+	/// Enable accepting compressed responses.
+	///
+	/// This clones the current config to avoid modifying shared state.
+	/// Prefer using [`GrpcBuilder::accept_compressed`] during configuration.
+	///
+	/// # Note
+	///
+	/// Using this method bypasses the shared configuration mechanism and
+	/// allocates a new `GrpcConfig` internally.
+	pub fn accept_compressed(mut self, encoding: CompressionEncoding) -> Self {
+		let mut config = (*self.config).clone();
+		config.accept_compression_encodings.enable(encoding);
+		self.config = Arc::new(config);
+		self
+	}
+
+	/// Limits the maximum size of a decoded message.
+	///
+	/// This clones the current config to avoid modifying shared state.
+	/// Prefer using [`GrpcBuilder::max_decoding_message_size`] during configuration.
+	pub fn max_decoding_message_size(mut self, limit: usize) -> Self {
+		let mut config = (*self.config).clone();
+		config.max_decoding_message_size = Some(limit);
+		self.config = Arc::new(config);
+		self
+	}
+
+	/// Limits the maximum size of an encoded message.
+	///
+	/// This clones the current config to avoid modifying shared state.
+	/// Prefer using [`GrpcBuilder::max_encoding_message_size`] during configuration.
+	pub fn max_encoding_message_size(mut self, limit: usize) -> Self {
+		let mut config = (*self.config).clone();
+		config.max_encoding_message_size = Some(limit);
+		self.config = Arc::new(config);
+		self
+	}
+    
+    /// Creates a new gRPC client with the provided [`GrpcService`] and `Uri`.
+    ///
+    /// The provided Uri will use only the scheme and authority parts as the
+    /// path_and_query portion will be set for each method.
+    pub fn with_origin(inner: T, origin: Uri) -> Self {
+    	Self::builder().origin(origin).build()
+    }
+
     /// Check if the inner [`GrpcService`] is able to accept a  new request.
     ///
     /// This will call [`GrpcService::poll_ready`] until it returns ready or
@@ -248,8 +306,8 @@ impl<T> Grpc<T> {
                 EncodeBody::new_client(
                     codec.encoder(),
                     s.map(Ok),
-                    self.send_compression_encodings(),
-                    self.max_encoding_message_size(),
+                    self.get_send_compression_encodings(),
+                    self.get_max_encoding_message_size(),
                 )
             })
             .map(Body::new);
@@ -281,7 +339,7 @@ impl<T> Grpc<T> {
     {
         let encoding = CompressionEncoding::from_encoding_header(
             response.headers(),
-            self.accept_compression_encodings(),
+            self.get_accept_compression_encodings(),
         )?;
 
         let status_code = response.status();
@@ -306,7 +364,7 @@ impl<T> Grpc<T> {
                     body,
                     status_code,
                     encoding,
-                    self.max_decoding_message_size(),
+                    self.get_max_decoding_message_size(),
                 )
             } else {
                 Streaming::new_empty(decoder, body)
@@ -315,7 +373,7 @@ impl<T> Grpc<T> {
 
         Ok(Response::from_http(response))
     }
-    
+
     fn prepare_request(&self, request: Request<Body>, path: PathAndQuery) -> http::Request<Body> {
         let mut parts = self.origin().into_parts();
 
@@ -352,7 +410,7 @@ impl<T> Grpc<T> {
             .insert(CONTENT_TYPE, GRPC_CONTENT_TYPE);
 
         #[cfg(any(feature = "gzip", feature = "deflate", feature = "zstd"))]
-        if let Some(encoding) = self.send_compression_encodings() {
+        if let Some(encoding) = self.get_send_compression_encodings() {
             request.headers_mut().insert(
                 crate::codec::compression::ENCODING_HEADER,
                 encoding.into_header_value(),
@@ -360,7 +418,7 @@ impl<T> Grpc<T> {
         }
 
         if let Some(header_value) = self
-            .accept_compression_encodings()
+            .get_accept_compression_encodings()
             .into_accept_encoding_header_value()
         {
             request.headers_mut().insert(
@@ -378,61 +436,59 @@ impl<T: Clone> Clone for Grpc<T> {
         Self {
             inner: self.inner.clone(),
             #[cfg(feature = "grpc_config")]
-            config: self.config.clone()
+            config: self.config.clone(),
         }
     }
 }
 
 impl<T: fmt::Debug> fmt::Debug for Grpc<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    	#[cfg(feature = "grpc_config")]
-    	{
-    		f.debug_struct("Grpc")
-		        .field("inner", &self.inner)
-		        .field("origin", &self.config.origin)
-		        .field(
-		            "compression_encoding",
-		            &self.config.send_compression_encodings,
-		        )
-		        .field(
-		            "accept_compression_encodings",
-		            &self.config.accept_compression_encodings,
-		        )
-		        .field(
-		            "max_decoding_message_size",
-		            &self.config.max_decoding_message_size,
-		        )
-		        .field(
-		            "max_encoding_message_size",
-		            &self.config.max_encoding_message_size,
-		        )
-		        .finish()
-    	}
-       
-            
-        #[cfg(not(feature = "grpc_config"))]
+        #[cfg(feature = "grpc_config")]
         {
-        	f.debug_struct("Grpc").field("inner", &self.inner).finish()            
+            f.debug_struct("Grpc")
+                .field("inner", &self.inner)
+                .field("origin", &self.config.origin)
+                .field(
+                    "compression_encoding",
+                    &self.config.send_compression_encodings,
+                )
+                .field(
+                    "accept_compression_encodings",
+                    &self.config.accept_compression_encodings,
+                )
+                .field(
+                    "max_decoding_message_size",
+                    &self.config.max_decoding_message_size,
+                )
+                .field(
+                    "max_encoding_message_size",
+                    &self.config.max_encoding_message_size,
+                )
+                .finish()
         }
 
+        #[cfg(not(feature = "grpc_config"))]
+        {
+            f.debug_struct("Grpc").field("inner", &self.inner).finish()
+        }
     }
 }
 
 #[cfg(feature = "grpc_config")]
 #[derive(Default)]
 pub struct GrpcBuilder {
-	config: GrpcConfig
+    config: GrpcConfig,
 }
 
 #[cfg(feature = "grpc_config")]
 impl GrpcBuilder {
-	/// Optionally specify `Uri`.
+    /// Optionally specify `Uri`.
     ///
     /// The provided Uri will use only the scheme and authority parts as the
     /// path_and_query portion will be set for each method.
-	pub fn origin(mut self, origin: Uri) -> Self {
-		self.config.origin = origin;
-		self
+    pub fn origin(mut self, origin: Uri) -> Self {
+        self.config.origin = origin;
+        self
     }
 
     /// Compress requests with the provided encoding.
@@ -556,13 +612,12 @@ impl GrpcBuilder {
         self.config.max_encoding_message_size = Some(limit);
         self
     }
-    
+
     /// Creates a new gRPC client with the provided [`GrpcService`]
     pub fn build<T>(inner: T) -> Grpc<T> {
-    	 Grpc {
-    	    inner,
-    	    config: self.config
-    	 }
-   }
+        Grpc {
+            inner,
+            config: self.config,
+        }
+    }
 }
-	
