@@ -136,17 +136,18 @@ impl<T> Grpc<T> {
     pub fn builder() -> GrpcBuilder {
         GrpcBuilder::default()
     }
-    
+
     /// Creates a new gRPC client with the provided [`GrpcService`] and `Uri`.
     ///
     /// The provided Uri will use only the scheme and authority parts as the
     /// path_and_query portion will be set for each method.
+    #[allow(unused_variables)]
     pub fn with_origin(inner: T, origin: Uri) -> Self {
-    	#[cfg(feature = "grpc_config")]
-    	{
-            Self::builder().origin(origin).build(inner)    	
-    	}
-    	
+        #[cfg(feature = "grpc_config")]
+        {
+            Self::builder().origin(origin).build(inner)
+        }
+
         #[cfg(not(feature = "grpc_config"))]
         {
             Self::new(inner)
