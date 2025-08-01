@@ -15,6 +15,7 @@ use http::{
 use http_body::Body as HttpBody;
 use std::{fmt, future, pin::pin};
 use tokio_stream::{Stream, StreamExt};
+#[cfg(feature = "grpc_config")]
 use std::sync::Arc;
 
 /// A gRPC client dispatcher.
@@ -41,17 +42,17 @@ macro_rules! config_getters {
         $(#[$attr:meta])*
         struct GrpcConfig {
             $(
-                #[$doc:meta]
+                $(#[$doc:meta])*
                 $field:ident: $ty:ty,
-            )*
+            )+
         }
     } => {
         $(#[$attr])*
         struct GrpcConfig {
             $(
-                #[$doc]
+                $(#[$doc])*
                 $field: $ty,
-            )*
+            )+
         }
 
         impl<T> Grpc<T> {
@@ -74,6 +75,7 @@ macro_rules! config_getters {
 }
 
 config_getters! {
+	#[allow(dead_code)]
 	#[derive(Default)]
 	struct GrpcConfig {
 		origin: Uri,
@@ -384,29 +386,35 @@ impl<T: Clone> Clone for Grpc<T> {
 impl<T: fmt::Debug> fmt::Debug for Grpc<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     	#[cfg(feature = "grpc_config")]
-        f.debug_struct("Grpc")
-            .field("inner", &self.inner)
-            .field("origin", &self.config.origin)
-            .field(
-                "compression_encoding",
-                &self.config.send_compression_encodings,
-            )
-            .field(
-                "accept_compression_encodings",
-                &self.config.accept_compression_encodings,
-            )
-            .field(
-                "max_decoding_message_size",
-                &self.config.max_decoding_message_size,
-            )
-            .field(
-                "max_encoding_message_size",
-                &self.config.max_encoding_message_size,
-            )
-            .finish()
+    	{
+    		f.debug_struct("Grpc")
+		        .field("inner", &self.inner)
+		        .field("origin", &self.config.origin)
+		        .field(
+		            "compression_encoding",
+		            &self.config.send_compression_encodings,
+		        )
+		        .field(
+		            "accept_compression_encodings",
+		            &self.config.accept_compression_encodings,
+		        )
+		        .field(
+		            "max_decoding_message_size",
+		            &self.config.max_decoding_message_size,
+		        )
+		        .field(
+		            "max_encoding_message_size",
+		            &self.config.max_encoding_message_size,
+		        )
+		        .finish()
+    	}
+       
             
-            #[cfg(not(feature = "grpc_config"))]
-            f.debug_struct("Grpc").field("inner", &self.inner).finish()
+        #[cfg(not(feature = "grpc_config"))]
+        {
+        	f.debug_struct("Grpc").field("inner", &self.inner).finish()            
+        }
+
     }
 }
 
@@ -552,8 +560,8 @@ impl GrpcBuilder {
     /// Creates a new gRPC client with the provided [`GrpcService`]
     pub fn build<T>(inner: T) -> Grpc<T> {
     	 Grpc {
-    	 	inner,
-    	 	config: self.config
+    	    inner,
+    	    config: self.config
     	 }
    }
 }
