@@ -15,7 +15,7 @@ pub use self::buffer::{DecodeBuf, EncodeBuf};
 pub use self::compression::{CompressionEncoding, EnabledCompressionEncodings};
 pub use self::decode::Streaming;
 pub use self::encode::EncodeBody;
-pub use prost_codec_impl.rs::ProstCodec;
+pub use prost_codec_impl::ProstCodec;
 
 // Doc hidden since this is used in a test in another crate, we can expose this publically later
 // if we need it.
