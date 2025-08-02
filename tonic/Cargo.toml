@@ -1,22 +1,22 @@
 [package]
-name = "tonic"
+name = "tonic-veecore"
 # When releasing to crates.io:
 # - Remove path dependencies
 # - Update CHANGELOG.md.
 # - Create "v0.11.x" git tag.
-authors = ["Lucio Franco <luciofranco14@gmail.com>"]
+authors = ["Victor <victorayo206@example.com>"]
 categories = ["web-programming", "network-programming", "asynchronous"]
 description = """
-A gRPC over HTTP/2 implementation focused on high performance, interoperability, and flexibility.
+Fork of `tonic` with internal gRPC client optimizations. Use at your own risk. Maintained for veecore projects.
 """
 edition = "2021"
-homepage = "https://github.com/hyperium/tonic"
-keywords = ["rpc", "grpc", "async", "futures", "protobuf"]
+homepage = "https://github.com/veecore/tonic-veecore"
+keywords = ["rpc", "grpc", "async", "futures", "protobuf", "fork"]
 license = "MIT"
 readme = "../README.md"
-repository = "https://github.com/hyperium/tonic"
-version = "0.14.0"
-rust-version = {workspace = true}
+repository = "https://github.com/veecore/tonic-veecore"
+version = "0.14.0-veecore.1"
+rust-version = 1.86
 exclude = ["benches-disabled"]
 
 [features]
