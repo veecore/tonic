@@ -1,7 +1,7 @@
-use prost::Message;
-use std::marker::PhantomData;
 use super::{BufferSettings, Codec, DecodeBuf, Decoder, EncodeBuf, Encoder};
 use crate::Status;
+use prost::Message;
+use std::marker::PhantomData;
 
 /// A [`Codec`] that implements `application/grpc+proto` via the prost library.
 #[derive(Debug, Clone)]
@@ -149,12 +149,12 @@ fn from_decode_error(error: prost::DecodeError) -> Status {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::codec::SingleMessageCompressionOverride;
+    use crate::codec::{EncodeBody, Streaming, HEADER_SIZE};
     use bytes::{Buf, BufMut, BytesMut};
     use http_body::Body;
     use http_body_util::BodyExt as _;
     use std::pin::pin;
-    use crate::codec::SingleMessageCompressionOverride;
-    use crate::codec::{EncodeBody, Streaming, HEADER_SIZE};
 
     const LEN: usize = 10000;
     // The maximum uncompressed size in bytes for a message. Set to 2MB.
@@ -342,13 +342,13 @@ mod tests {
     }
 
     mod body {
+        use crate::Status;
         use bytes::Bytes;
         use http_body::{Body, Frame};
         use std::{
             pin::Pin,
             task::{Context, Poll},
         };
-        use crate::Status;
 
         #[derive(Debug)]
         pub(super) struct MockBody {
