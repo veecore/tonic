@@ -9,6 +9,8 @@ use tower::make::MakeService;
 use tower_service::Service;
 use tracing::trace;
 
+use super::AsyncService;
+
 pub(crate) struct Reconnect<M, Target>
 where
     M: Service<Target>,
@@ -49,11 +51,12 @@ where
 impl<M, Target, S, Request> Service<Request> for Reconnect<M, Target>
 where
     M: Service<Target, Response = S>,
-    S: Service<Request>,
+    S: AsyncService<Request>,
     M::Future: Unpin,
     crate::BoxError: From<M::Error> + From<S::Error>,
     Target: Clone,
     <M as tower_service::Service<Target>>::Error: Into<crate::BoxError>,
+    Request: Send + 'static
 {
     type Response = S::Response;
     type Error = crate::BoxError;
@@ -138,6 +141,24 @@ where
     }
 
     fn call(&mut self, request: Request) -> Self::Future {
+        self.async_call(async move {
+            request
+        })
+    }
+}
+
+impl<M, Target, S, Request> AsyncService<Request> for Reconnect<M, Target>
+where
+    M: Service<Target, Response = S>,
+    S: AsyncService<Request>,
+    M::Future: Unpin,
+    crate::BoxError: From<M::Error> + From<S::Error>,
+    Target: Clone,
+    <M as tower_service::Service<Target>>::Error: Into<crate::BoxError>,
+    Request: Send + 'static
+{
+    #[inline(always)]
+    fn async_call(&mut self, request: impl Future<Output = Request> + Send + 'static) -> Self::Future {
         tracing::trace!("Reconnect::call");
         if let Some(error) = self.error.take() {
             tracing::debug!("error: {}", error);
@@ -148,9 +169,9 @@ where
             panic!("service not ready; poll_ready must be called first");
         };
 
-        let fut = service.call(request);
+        let fut = service.async_call(request);
         ResponseFuture::new(fut)
-    }
+    }   
 }
 
 impl<M, Target> fmt::Debug for Reconnect<M, Target>

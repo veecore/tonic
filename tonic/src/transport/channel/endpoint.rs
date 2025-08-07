@@ -5,6 +5,7 @@ use super::uds_connector::UdsConnector;
 use super::Channel;
 #[cfg(feature = "_tls-any")]
 use super::ClientTlsConfig;
+use crate::body::Body;
 #[cfg(feature = "_tls-any")]
 use crate::transport::error;
 use crate::transport::Error;
@@ -14,6 +15,7 @@ use hyper::rt;
 use hyper_util::client::legacy::connect::HttpConnector;
 use std::{fmt, future::Future, net::IpAddr, pin::Pin, str, str::FromStr, time::Duration};
 use tower_service::Service;
+use crate::transport::channel::RawRequest;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) enum EndpointType {
@@ -538,6 +540,56 @@ impl Endpoint {
             Channel::new(connector, self.clone())
         } else {
             Channel::new(connector, self.clone())
+        }
+    }
+
+    /// Establishes a connection while allowing raw access to the HTTP request before it's sent.
+    ///
+    /// # Safety
+    ///
+    /// This method is `unsafe` because it hands over a mutable, raw `http::Request<Body>` to the
+    /// provided modifier function **without rebuilding the request afterward**. That means:
+    ///
+    /// - You can mutate headers, extensions, or even consume and replace the body.
+    /// - You're pledging not to break invariants that the gRPC client or HTTP layer relies on.
+    ///
+    /// **Use this only if you know exactly what you're doing.**
+    ///
+    /// # Why this exists
+    ///
+    /// - Unlike `Interceptor`, this doesn't increase the size of your `Client` or `Service` types.
+    ///   It works by smuggling the modifier into the heap-allocated `Channel` service.
+    /// - It gives full low-level control over the request, even letting you consume the body if needed.
+    /// - This is useful for advanced middleware use-cases where you want to modify the request inline
+    ///   — e.g. injecting headers, altering the path, or setting up debug stubs.
+    ///
+    /// # When *not* to use
+    ///
+    /// - If all you need is to add headers or auth logic, prefer `Interceptor`.
+    /// - If you don’t fully understand the HTTP request structure, stay away from this.
+    /// 
+    /// # You’ve been warned.
+    /// This function assumes you're *not going to do anything wild*, but doesn't enforce it.
+    pub async unsafe fn connect_with_modifier_fn<M, MF>(
+        self,
+        modifier_fn: M,
+    ) -> Result<Channel, Error>
+    where
+        M: FnOnce(RawRequest<Body>) -> MF + Send + 'static + Clone,
+        MF: Future<Output = RawRequest<Body>> + Send + 'static,
+    {
+        match &self.uri {
+            EndpointType::Uri(_) => {
+                Channel::connect_with_modifier_fn(self.http_connector(), self, modifier_fn).await
+            }
+            EndpointType::Uds(uds_filepath) => {
+                Channel::connect_with_modifier_fn(
+                    self.uds_connector(uds_filepath.as_str()),
+                    self,
+                    modifier_fn,
+                )
+                .await
+            }
         }
     }
 

@@ -123,6 +123,8 @@ pub use http::Extensions;
 pub use request::{IntoRequest, IntoStreamingRequest, Request};
 pub use response::Response;
 pub use status::{Code, ConnectError, Status, TimeoutExpired};
+pub use transport::channel::{RawRequest, RawRequestHeader, RawRequestHeaderValue};
+// pub use http::*
 
 pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 

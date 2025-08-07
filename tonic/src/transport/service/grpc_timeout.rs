@@ -1,4 +1,6 @@
-use crate::{metadata::GRPC_TIMEOUT_HEADER, TimeoutExpired};
+use crate::{
+    metadata::GRPC_TIMEOUT_HEADER, transport::channel::service::AsyncService, TimeoutExpired,
+};
 use http::{HeaderMap, HeaderValue, Request};
 use pin_project::pin_project;
 use std::{
@@ -7,7 +9,7 @@ use std::{
     task::{ready, Context, Poll},
     time::Duration,
 };
-use tokio::time::Sleep;
+use tokio::{sync::oneshot, time::Sleep};
 use tower_service::Service;
 
 #[derive(Debug, Clone)]
@@ -57,7 +59,60 @@ where
 
         ResponseFuture {
             inner: self.inner.call(req),
-            sleep: timeout_duration.map(tokio::time::sleep),
+            sleep: SleepKnown::Yes(timeout_duration.map(tokio::time::sleep)),
+        }
+    }
+}
+
+impl<S, ReqBody> AsyncService<Request<ReqBody>> for GrpcTimeout<S>
+where
+    S: AsyncService<Request<ReqBody>>,
+    S::Error: Into<crate::BoxError>,
+{
+    fn async_call(
+        &mut self,
+        request: impl Future<Output = Request<ReqBody>> + Send + 'static,
+    ) -> Self::Future {
+        // FIXME: Unify with call
+
+        // sobs
+        // FIXME: Inherently unnecessary... this is introduced because
+        // of the AsyncService hack as a hack
+        let (tx, rx) = oneshot::channel();
+
+        let server_timeout = self.server_timeout;
+
+        let call = async move {
+            let request = request.await;
+
+            let client_timeout = try_parse_grpc_timeout(request.headers()).unwrap_or_else(|e| {
+                tracing::trace!("Error parsing `grpc-timeout` header {:?}", e);
+                None
+            });
+
+            // Use the shorter of the two durations, if either are set
+            let timeout_duration = match (client_timeout, server_timeout) {
+                (None, None) => None,
+                (Some(dur), None) => Some(dur),
+                (None, Some(dur)) => Some(dur),
+                (Some(header), Some(server)) => {
+                    let shorter_duration = std::cmp::min(header, server);
+                    Some(shorter_duration)
+                }
+            };
+
+            // This will occur before ResponseFuture is polled
+            // The timeout will be buffered in the channel
+            //
+            // The request might get dropped
+            let _ = tx.send(timeout_duration);
+
+            request
+        };
+
+        ResponseFuture {
+            inner: self.inner.async_call(call),
+            sleep: SleepKnown::No(rx),
         }
     }
 }
@@ -67,7 +122,44 @@ pub(crate) struct ResponseFuture<F> {
     #[pin]
     inner: F,
     #[pin]
-    sleep: Option<Sleep>,
+    sleep: SleepKnown,
+}
+
+#[pin_project(project = SleepKnownProj)]
+enum SleepKnown {
+    No(#[pin] oneshot::Receiver<Option<Duration>>),
+    Yes(#[pin] Option<Sleep>),
+}
+
+impl Future for SleepKnown {
+    type Output = ();
+
+    #[inline]
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        loop {
+            let this = self.as_mut().project();
+
+            match this {
+                SleepKnownProj::No(no) => {
+                    // FIXME: Shouldn't panic here if first poll doesn't return the timeout immediately?
+                    // The timeout is already buffered in the channel so it should be immediately available
+                    //
+                    // Make better error for when we fail (it's impossible)
+                    let known = ready!(no.poll(cx)).unwrap();
+                    // Set to known
+                    self.set(SleepKnown::Yes(known.map(tokio::time::sleep)));
+                }
+                SleepKnownProj::Yes(yes) => {
+                    if let Some(sleep) = yes.as_pin_mut() {
+                        return sleep.poll(cx);
+                    } else {
+                        // If there's no timeout, pend forever
+                        return Poll::Pending;
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl<F, Res, E> Future for ResponseFuture<F>
@@ -84,12 +176,10 @@ where
             return ready.map_err(Into::into);
         }
 
-        if let Some(sleep) = this.sleep.as_pin_mut() {
-            ready!(sleep.poll(cx));
-            return Poll::Ready(Err(TimeoutExpired(()).into()));
-        }
+        #[allow(clippy::let_unit_value)]
+        let _timed_out = ready!(this.sleep.poll(cx));
 
-        Poll::Pending
+        Poll::Ready(Err(TimeoutExpired(()).into()))
     }
 }
 

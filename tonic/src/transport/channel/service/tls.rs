@@ -21,10 +21,23 @@ use crate::transport::tls::{Certificate, Identity};
 
 #[derive(Clone)]
 pub(crate) struct TlsConnector {
+    inner: Arc<TlsConnectorInner>
+}
+
+#[derive(Debug)]
+pub(crate) struct TlsConnectorInner {
     config: Arc<ClientConfig>,
-    domain: Arc<ServerName<'static>>,
+    domain: ServerName<'static>,
     assume_http2: bool,
     timeout: Option<Duration>,
+}
+
+impl std::ops::Deref for TlsConnector {
+    type Target = TlsConnectorInner;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 impl TlsConnector {
@@ -33,6 +46,7 @@ impl TlsConnector {
         ca_certs: Vec<Certificate>,
         trust_anchors: Vec<TrustAnchor<'static>>,
         identity: Option<Identity>,
+        // FIXME: Have Cow<'static, str> here
         domain: &str,
         assume_http2: bool,
         use_key_log: bool,
@@ -98,10 +112,12 @@ impl TlsConnector {
 
         config.alpn_protocols.push(ALPN_H2.into());
         Ok(Self {
-            config: Arc::new(config),
-            domain: Arc::new(ServerName::try_from(domain)?.to_owned()),
-            assume_http2,
-            timeout,
+            inner: Arc::new(TlsConnectorInner {
+                config: Arc::new(config),
+                domain: ServerName::try_from(domain)?.to_owned(),
+                assume_http2,
+                timeout,
+            })
         })
     }
 
@@ -110,7 +126,8 @@ impl TlsConnector {
         I: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     {
         let conn_fut =
-            RustlsConnector::from(self.config.clone()).connect(self.domain.as_ref().to_owned(), io);
+            // Cloning domain here is more general and better when we have borrowed
+            RustlsConnector::from(self.config.clone()).connect(self.domain.to_owned(), io);
         let io = match self.timeout {
             Some(timeout) => time::timeout(timeout, conn_fut)
                 .await

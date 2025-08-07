@@ -11,7 +11,7 @@ pub use endpoint::Endpoint;
 #[cfg(feature = "_tls-any")]
 pub use tls::ClientTlsConfig;
 
-use self::service::{Connection, DynamicServiceStream, Executor, SharedExec};
+use self::service::{Connection, DynamicServiceStream, Executor, SharedExec, modifier_fn_default};
 use crate::body::Body;
 use bytes::Bytes;
 use http::{
@@ -19,11 +19,7 @@ use http::{
     Request, Response,
 };
 use std::{
-    fmt,
-    future::Future,
-    hash::Hash,
-    pin::Pin,
-    task::{Context, Poll},
+    fmt, future::Future, hash::Hash, pin::Pin, task::{Context, Poll}
 };
 use tokio::sync::mpsc::{channel, Sender};
 
@@ -176,10 +172,22 @@ impl Channel {
         C::Future: Unpin + Send,
         C::Response: rt::Read + rt::Write + Unpin + Send + 'static,
     {
+        Self::connect_with_modifier_fn(connector, endpoint, modifier_fn_default()).await
+    }
+
+    pub(crate) async fn connect_with_modifier_fn<C, M, MF>(connector: C, endpoint: Endpoint, modifier_fn: M) -> Result<Self, super::Error>
+    where
+        C: Service<Uri> + Send + 'static,
+        C::Error: Into<crate::BoxError> + Send,
+        C::Future: Unpin + Send,
+        C::Response: rt::Read + rt::Write + Unpin + Send + 'static,
+        M: FnOnce(RawRequest<Body>) -> MF + Send + 'static + Clone,
+        MF: Future<Output = RawRequest<Body>> + Send + 'static,
+    {
         let buffer_size = endpoint.buffer_size.unwrap_or(DEFAULT_BUFFER_SIZE);
         let executor = endpoint.executor.clone();
 
-        let svc = Connection::connect(connector, endpoint)
+        let svc = Connection::connect(connector, endpoint, modifier_fn)
             .await
             .map_err(super::Error::from_source)?;
         let (svc, worker) = Buffer::pair(svc, buffer_size);
@@ -242,3 +250,9 @@ impl fmt::Debug for ResponseFuture {
         f.debug_struct("ResponseFuture").finish()
     }
 }
+
+// FIXME: Make proper later
+pub type RawRequest<Body> = http::Request<Body>;
+// FIXME: Remove all later
+pub type RawRequestHeader = http::header::HeaderMap;
+pub type RawRequestHeaderValue = http::header::HeaderValue;
