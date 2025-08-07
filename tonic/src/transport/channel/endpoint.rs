@@ -6,6 +6,7 @@ use super::Channel;
 #[cfg(feature = "_tls-any")]
 use super::ClientTlsConfig;
 use crate::body::Body;
+use crate::transport::channel::RawRequest;
 #[cfg(feature = "_tls-any")]
 use crate::transport::error;
 use crate::transport::Error;
@@ -15,7 +16,6 @@ use hyper::rt;
 use hyper_util::client::legacy::connect::HttpConnector;
 use std::{fmt, future::Future, net::IpAddr, pin::Pin, str, str::FromStr, time::Duration};
 use tower_service::Service;
-use crate::transport::channel::RawRequest;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) enum EndpointType {
@@ -567,7 +567,7 @@ impl Endpoint {
     ///
     /// - If all you need is to add headers or auth logic, prefer `Interceptor`.
     /// - If you don’t fully understand the HTTP request structure, stay away from this.
-    /// 
+    ///
     /// # You’ve been warned.
     /// This function assumes you're *not going to do anything wild*, but doesn't enforce it.
     pub async unsafe fn connect_with_modifier_fn<M, MF>(

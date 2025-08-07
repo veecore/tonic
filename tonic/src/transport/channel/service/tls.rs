@@ -21,7 +21,7 @@ use crate::transport::tls::{Certificate, Identity};
 
 #[derive(Clone)]
 pub(crate) struct TlsConnector {
-    inner: Arc<TlsConnectorInner>
+    inner: Arc<TlsConnectorInner>,
 }
 
 #[derive(Debug)]
@@ -117,7 +117,7 @@ impl TlsConnector {
                 domain: ServerName::try_from(domain)?.to_owned(),
                 assume_http2,
                 timeout,
-            })
+            }),
         })
     }
 

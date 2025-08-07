@@ -14,7 +14,10 @@ use hyper::rt;
 use hyper::{client::conn::http2::Builder, rt::Executor};
 use hyper_util::rt::TokioTimer;
 use std::{
-    fmt, future::Future, sync::Arc, task::{Context, Poll}
+    fmt,
+    future::Future,
+    sync::Arc,
+    task::{Context, Poll},
 };
 use tower::load::Load;
 use tower::{
@@ -114,7 +117,7 @@ impl Connection {
     //     Self::new(connector, endpoint, false).ready_oneshot().await
     // }
 
-    pub(crate) async fn connect<C, M , MF>(
+    pub(crate) async fn connect<C, M, MF>(
         connector: C,
         endpoint: Endpoint,
         modifier_fn: M,
@@ -191,13 +194,16 @@ impl tower::Service<Request<Body>> for SendRequest {
     }
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
-        self.async_call(async move {req})
+        self.async_call(async move { req })
     }
 }
 
 impl AsyncService<Request<Body>> for SendRequest {
     #[inline(always)]
-    fn async_call(&mut self, req: impl Future<Output = Request<Body>> + Send + 'static) -> Self::Future {
+    fn async_call(
+        &mut self,
+        req: impl Future<Output = Request<Body>> + Send + 'static,
+    ) -> Self::Future {
         // SendRequest is just 16bytes and clone is cheap since it's shared
         // Besides, we get rid of the many Box::pinning by doing this so it seems
         // justified to clone it. Of course, this is not solving the problem but

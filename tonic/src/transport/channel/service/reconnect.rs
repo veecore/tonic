@@ -56,7 +56,7 @@ where
     crate::BoxError: From<M::Error> + From<S::Error>,
     Target: Clone,
     <M as tower_service::Service<Target>>::Error: Into<crate::BoxError>,
-    Request: Send + 'static
+    Request: Send + 'static,
 {
     type Response = S::Response;
     type Error = crate::BoxError;
@@ -141,9 +141,7 @@ where
     }
 
     fn call(&mut self, request: Request) -> Self::Future {
-        self.async_call(async move {
-            request
-        })
+        self.async_call(async move { request })
     }
 }
 
@@ -155,10 +153,13 @@ where
     crate::BoxError: From<M::Error> + From<S::Error>,
     Target: Clone,
     <M as tower_service::Service<Target>>::Error: Into<crate::BoxError>,
-    Request: Send + 'static
+    Request: Send + 'static,
 {
     #[inline(always)]
-    fn async_call(&mut self, request: impl Future<Output = Request> + Send + 'static) -> Self::Future {
+    fn async_call(
+        &mut self,
+        request: impl Future<Output = Request> + Send + 'static,
+    ) -> Self::Future {
         tracing::trace!("Reconnect::call");
         if let Some(error) = self.error.take() {
             tracing::debug!("error: {}", error);
@@ -171,7 +172,7 @@ where
 
         let fut = service.async_call(request);
         ResponseFuture::new(fut)
-    }   
+    }
 }
 
 impl<M, Target> fmt::Debug for Reconnect<M, Target>

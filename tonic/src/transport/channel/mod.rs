@@ -11,7 +11,7 @@ pub use endpoint::Endpoint;
 #[cfg(feature = "_tls-any")]
 pub use tls::ClientTlsConfig;
 
-use self::service::{Connection, DynamicServiceStream, Executor, SharedExec, modifier_fn_default};
+use self::service::{modifier_fn_default, Connection, DynamicServiceStream, Executor, SharedExec};
 use crate::body::Body;
 use bytes::Bytes;
 use http::{
@@ -19,7 +19,11 @@ use http::{
     Request, Response,
 };
 use std::{
-    fmt, future::Future, hash::Hash, pin::Pin, task::{Context, Poll}
+    fmt,
+    future::Future,
+    hash::Hash,
+    pin::Pin,
+    task::{Context, Poll},
 };
 use tokio::sync::mpsc::{channel, Sender};
 
@@ -175,7 +179,11 @@ impl Channel {
         Self::connect_with_modifier_fn(connector, endpoint, modifier_fn_default()).await
     }
 
-    pub(crate) async fn connect_with_modifier_fn<C, M, MF>(connector: C, endpoint: Endpoint, modifier_fn: M) -> Result<Self, super::Error>
+    pub(crate) async fn connect_with_modifier_fn<C, M, MF>(
+        connector: C,
+        endpoint: Endpoint,
+        modifier_fn: M,
+    ) -> Result<Self, super::Error>
     where
         C: Service<Uri> + Send + 'static,
         C::Error: Into<crate::BoxError> + Send,

@@ -119,8 +119,8 @@ where
 }
 
 /*Musn't necessarily be Servie but to reduce typing*/
-// More like ServicePassAlong than AsyncService 
-// This exists to reduce heap-allocation of futures... 
+// More like ServicePassAlong than AsyncService
+// This exists to reduce heap-allocation of futures...
 // we do this... then at the root, we box one giant future instead of intermediate
 // light ones. Boxing of these intermediate light ones was necessary since impl Trait
 // is unstable. So in essence, this trait helps bypass impl Trait restriction.
