@@ -126,7 +126,6 @@ impl TlsConnector {
         I: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     {
         let conn_fut =
-            // Cloning domain here is more general and better when we have borrowed
             RustlsConnector::from(self.config.clone()).connect(self.domain.to_owned(), io);
         let io = match self.timeout {
             Some(timeout) => time::timeout(timeout, conn_fut)

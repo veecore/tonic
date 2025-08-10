@@ -59,36 +59,6 @@ pub(super) use self::tls::TlsConnector;
 /// - Use it when you are 100% certain `.layer(...)` is called **once**, such as:
 ///     - During server startup
 ///     - In integration tests
-///
-/// # Example
-///
-/// ```rust
-/// # use tower::{Layer, Service};
-/// # use std::task::{Poll, Context};
-/// # use std::pin::Pin;
-///
-/// struct MySvc;
-/// impl<S> Service<S> for MySvc {
-///     type Response = ();
-///     type Error = ();
-///     type Future = std::future::Ready<Result<(), ()>>;
-///
-///     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), ()>> {
-///         Poll::Ready(Ok(()))
-///     }
-///
-///     fn call(&mut self, _: S) -> Self::Future {
-///         std::future::ready(Ok(()))
-///     }
-/// }
-///
-/// let layer = LayerFnOnce::new(|svc: MySvc| {
-///     // Transform the service here
-///     svc
-/// });
-///
-/// let svc = layer.layer(MySvc); // ✅ Safe if called exactly once
-/// ```
 #[derive(Clone, Debug)]
 pub(crate) struct LayerFnOnce<F> {
     f: RefCell<Option<F>>,

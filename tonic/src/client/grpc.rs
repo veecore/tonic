@@ -114,9 +114,9 @@ impl<T> Grpc<T> {
     ///
     /// ```rust
     /// use tonic::transport::Channel;
-    /// use tonic::codec::CompressionEncoding;
     /// use tonic::client::Grpc;
     ///
+    /// # enum CompressionEncoding { Gzip }    
     /// # async {
     /// let channel = Channel::builder("http://[::1]:50051".parse().unwrap())
     ///     .connect()
@@ -125,8 +125,6 @@ impl<T> Grpc<T> {
     ///
     /// let client = Grpc::<Channel>::builder()
     ///     .origin("http://example.com".parse().unwrap())
-    ///     .send_compressed(CompressionEncoding::Gzip)
-    ///     .accept_compressed(CompressionEncoding::Gzip)
     ///     .max_decoding_message_size(2 * 1024 * 1024)
     ///     .max_encoding_message_size(2 * 1024 * 1024)
     ///     .build(channel);

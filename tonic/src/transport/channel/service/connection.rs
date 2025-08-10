@@ -87,12 +87,16 @@ impl Connection {
         let stack = ServiceBuilder::new()
             .option_layer(endpoint.concurrency_limit.map(ConcurrencyLimitLayer::new))
             .option_layer(endpoint.rate_limit.map(|(l, d)| RateLimitLayer::new(l, d)))
+            // FIXME: The GrpcTimeout really be last but since only me uses this
+            // crate, I can cheat like this... The cost of creating a channel for
+            // every request just to get timeout is really not worth it
+            .layer_fn(|s| GrpcTimeout::new(s, endpoint.timeout))
             .layer(ModifierFn::new_layer_once(add_origin.to_request_fn()))
             .layer(ModifierFn::new_layer_once(
                 UserAgent::new(endpoint.user_agent).to_request_fn(),
             ))
             .layer(ModifierFn::new_layer_once(custom_modifier))
-            .layer_fn(|s| GrpcTimeout::new(s, endpoint.timeout))
+            // .layer_fn(|s| GrpcTimeout::new(s, endpoint.timeout))
             .into_inner();
 
         let make_service = MakeSendRequestService::new(connector, endpoint.executor, settings);

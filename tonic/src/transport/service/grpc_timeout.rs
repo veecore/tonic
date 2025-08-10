@@ -76,7 +76,7 @@ where
         // FIXME: Unify with call
 
         // sobs
-        // FIXME: Inherently unnecessary... this is introduced because
+        // FIXME: Unnecessary... this is introduced because
         // of the AsyncService hack as a hack
         let (tx, rx) = oneshot::channel();
 
@@ -141,7 +141,7 @@ impl Future for SleepKnown {
 
             match this {
                 SleepKnownProj::No(no) => {
-                    // FIXME: Shouldn't panic here if first poll doesn't return the timeout immediately?
+                    // FIXME: Shouldn't we panic here if first poll doesn't return the timeout immediately?
                     // The timeout is already buffered in the channel so it should be immediately available
                     //
                     // Make better error for when we fail (it's impossible)
